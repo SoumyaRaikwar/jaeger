@@ -170,6 +170,15 @@ type Configuration struct {
 	// UseDataStream, if set to true, enables the data stream support (ES 8+ or OpenSearch potentially).
 	UseDataStream bool `mapstructure:"use_data_stream"`
 
+	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
+	UseILM bool `mapstructure:"use_ilm"`
+
+	// UseISM enables OpenSearch Index State Management.
+	UseISM bool `mapstructure:"use_ism"`
+
+	// UseDataStream, if set to true, enables the data stream support (ES 8+ or OpenSearch potentially).
+	UseDataStream bool `mapstructure:"use_data_stream"`
+
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
 	MaxDocCount int `mapstructure:"max_doc_count"`
@@ -494,6 +503,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Indices.IndexPrefix == "" {
 		c.Indices.IndexPrefix = source.Indices.IndexPrefix
 	}
+	if !c.UseISM {
+		c.UseISM = source.UseISM
+	}
 
 	setDefaultIndexOptions(&c.Indices.Spans, &source.Indices.Spans)
 	setDefaultIndexOptions(&c.Indices.Services, &source.Indices.Services)
@@ -764,8 +776,17 @@ func (c *Configuration) Validate() error {
 	if c.UseILM && !c.UseReadWriteAliases {
 		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
 	}
+	if c.UseILM && c.UseISM {
+		return errors.New("UseILM and UseISM cannot be enabled at the same time")
+	}
+	if c.UseISM && !c.UseReadWriteAliases && !c.UseDataStream {
+		return errors.New("UseISM must always be used in conjunction with UseReadWriteAliases or UseDataStream")
+	}
 	if c.CreateIndexTemplates && c.UseILM {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
+	}
+	if c.CreateIndexTemplates && c.UseISM {
+		return errors.New("when UseISM is set true, CreateIndexTemplates must be set to false and index templates must be managed externally")
 	}
 
 	// Validate explicit alias settings require UseReadWriteAliases
