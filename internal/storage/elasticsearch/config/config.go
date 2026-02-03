@@ -170,14 +170,8 @@ type Configuration struct {
 	// UseDataStream, if set to true, enables the data stream support (ES 8+ or OpenSearch potentially).
 	UseDataStream bool `mapstructure:"use_data_stream"`
 
-	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
-	UseILM bool `mapstructure:"use_ilm"`
-
 	// UseISM enables OpenSearch Index State Management.
 	UseISM bool `mapstructure:"use_ism"`
-
-	// UseDataStream, if set to true, enables the data stream support (ES 8+ or OpenSearch potentially).
-	UseDataStream bool `mapstructure:"use_data_stream"`
 
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
