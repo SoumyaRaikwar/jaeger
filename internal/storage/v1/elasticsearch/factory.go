@@ -195,7 +195,6 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 		ILMPolicyName:        cfg.Indices.IndexPrefix.Apply(defaultILMPolicyName),
 		EnableIngestPipeline: cfg.EnableIngestPipeline,
 		UseDataStream:        cfg.UseDataStream,
-		UseISM:               cfg.UseISM,
 	}
 }
 

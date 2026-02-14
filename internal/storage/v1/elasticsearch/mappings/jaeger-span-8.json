@@ -32,9 +32,6 @@
         "rollover_alias": "{{ .IndexPrefix }}jaeger-span-write"
       }
       {{- end }}
-      {{- if .UseISM }},
-      "plugins.index_state_management.policy_id": "jaeger-ism-policy"
-      {{- end }}
     },
     "mappings": {
       "dynamic_templates": [

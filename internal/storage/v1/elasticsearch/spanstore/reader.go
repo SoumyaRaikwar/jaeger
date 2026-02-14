@@ -149,14 +149,15 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	if spanIndexPrefix == "" {
 		spanIndexBase := spanIndexBaseName
 		if useDataStream {
-			spanIndexBase = "jaeger.span"
+			spanIndexBase = "jaeger-span-ds"
 		}
 		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBase)
 	}
 	if serviceIndexPrefix == "" {
 		serviceIndexBase := serviceIndexBaseName
 		if useDataStream {
-			serviceIndexBase = "jaeger.service"
+			// Services do not use Data Streams.
+			serviceIndexBase = serviceIndexBaseName
 		}
 		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBase)
 	}
@@ -175,14 +176,16 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 			return []string{indexPrefix}
 		}
 	case useDataStream:
-		// When using Data Streams, return the Data Stream name and a wildcard for legacy indices to support migration.
-		// For example, it will return ["jaeger.span", "jaeger-span-*"].
-		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
-			indices := []string{indexPrefix}
-			if readLegacyIndices.IsEnabled() {
-				indices = append(indices, cfg.GetDataStreamLegacyWildcard(indexPrefix))
+		standardTimeRangeFn := TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
+		timeRangeFn = func(indexPrefix string, layout string, start time.Time, end time.Time, lookback time.Duration) []string {
+			if indexPrefix == spanIndexPrefix {
+				indices := []string{indexPrefix}
+				if readLegacyIndices.IsEnabled() {
+					indices = append(indices, cfg.GetDataStreamLegacyWildcard(indexPrefix))
+				}
+				return indices
 			}
-			return indices
+			return standardTimeRangeFn(indexPrefix, layout, start, end, lookback)
 		}
 	default:
 		timeRangeFn = TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)

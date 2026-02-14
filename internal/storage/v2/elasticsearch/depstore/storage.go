@@ -69,16 +69,8 @@ func NewDependencyStore(p Params) *DependencyStore {
 
 // WriteDependencies write dependencies to Elasticsearch
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error {
-<<<<<<< HEAD
 	indexName := s.getWriteIndex(ts)
-	if err := s.createIndex(indexName); err != nil {
-		return err
-	}
 	s.writeDependenciesToIndex(indexName, ts, dependencies)
-=======
-	writeIndexName := s.getWriteIndex(ts)
-	s.writeDependencies(writeIndexName, ts, dependencies)
->>>>>>> 72670438 (chore: revert sampling/dependency data stream support and docs)
 	return nil
 }
 
@@ -121,7 +113,6 @@ func (s *DependencyStore) getWriteIndex(ts time.Time) string {
 	}
 	return config.IndexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 }
-
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]dbmodel.DependencyLink, error) {
@@ -169,11 +160,4 @@ func (s *DependencyStore) getReadIndices(ts time.Time, lookback time.Duration) [
 
 func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
 	return indexNamePrefix + date.UTC().Format(indexDateLayout)
-}
-
-func (s *DependencyStore) getWriteIndex(ts time.Time) string {
-	if s.useReadWriteAliases {
-		return s.dependencyIndexPrefix + "write"
-	}
-	return indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 }

@@ -127,11 +127,10 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string, useDataStre
 
 	// Otherwise, use the standard prefix + suffix approach
 	spanIndexBase := spanIndexBaseName
-	serviceIndexBase := serviceIndexBaseName
 	if useDataStream {
-		spanIndexBase = "jaeger.span"
-		serviceIndexBase = "jaeger.service"
+		spanIndexBase = "jaeger-span-ds"
 	}
+	serviceIndexBase := serviceIndexBaseName
 
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBase)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBase)
