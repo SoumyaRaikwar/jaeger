@@ -91,22 +91,6 @@ func (s *DependencyStore) writeDependenciesToIndex(indexName string, ts time.Tim
 		}).Add("")
 }
 
-func (s *DependencyStore) createIndex(indexName string) error {
-	ctx := context.Background()
-	if s.useReadWriteAliases {
-		return nil
-	}
-	exists, err := s.client().IndexExists(indexName).Do(ctx)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		_, err := s.client().CreateIndex(indexName).Do(ctx)
-		return err
-	}
-	return nil
-}
-
 func (s *DependencyStore) getWriteIndex(ts time.Time) string {
 	if s.useReadWriteAliases {
 		return s.dependencyIndexPrefix + "write"
