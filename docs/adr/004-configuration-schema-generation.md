@@ -4,57 +4,42 @@
 Proposed
 
 ## Context
-As part of Jaeger V2's migration to rely heavily on the OpenTelemetry Collector architecture, we need a robust mechanism to document, validate, and expose the configuration surface of Jaeger-specific components (extensions, receivers, storage plugins). 
+The goal for Jaeger V2 configuration is to provide **accurate, auto-generated, and functionally rich documentation** on [jaegertracing.io](https://www.jaegertracing.io/). 
 
-Currently, configuration structures are defined purely in Go structs. This leads to drift between code and documentation and completely lacks machine-readable definitions that UIs or CI pipelines can consume.
+Currently, our configuration is "Code-First": documentation is manually maintained, leading to drift, and we lack machine-readable definitions for validation or IDE support. While we briefly explored using `schemagen` (Go reflection to YAML), it was identified as an implementation detail that doesn't fully achieve the documentation goal—especially regarding "foreign references" to OpenTelemetry types.
 
-We have adopted the `schemagen` tool from `opentelemetry-collector-contrib` (introduced in PR #7947 and applied to internal extensions in PR #7952) to automate the generation of JSON schemas from our Go configuration structs. However, questions remain regarding how these generated schemas will be consumed, how external references (e.g., to core OTel types) are resolved, and how this relates to upstream OpenTelemetry initiatives.
+This ADR proposes a **Schema-First** approach, aligning with [Issue 6186](https://github.com/jaegertracing/jaeger/issues/6186) and the long-term roadmap of the OpenTelemetry Collector.
 
-### Upstream OpenTelemetry Context (Issue #14548)
-OpenTelemetry Collector PR #14548 (`[cmd/mdatagen] Add component config JSON schema generation`) introduces schema generation directly via `mdatagen`, utilizing a `config` section within `metadata.yaml` to support JSON Schema draft 2020-12, validation constraints, and schema composition.
-
-While `mdatagen` focuses on metadata-driven schema definition, `schemagen` (our current approach) generates schemas dynamically via Go reflection on the actual configuration structs.
+### Bootstrapping (Phase 1)
+We have already performed initial bootstrapping using `schemagen` (Go reflection to YAML) in PR #7947. This allowed us to quickly generate the initial inventory of schemas for internal extensions. Moving forward, these schemas will become the "source of truth," and we will pivot to the workflow described below.
 
 ## Decision
 
-### 1. Schema Generation Approach (Go Reflection vs. mdatagen)
-We will continue to use `schemagen` for Jaeger V2 components.
-**Argument:** Jaeger's configuration heavily utilizes complex, shared structs (especially around storage backends and tenancy) that map cleanly using Go reflection. While `mdatagen` is progressing in upstream OTel, requiring developers to manually define schemas in `metadata.yaml` duplicates effort and risks drift from the actual Go structs. `schemagen` guarantees the schema exactly matches the code.
+The goal is to generate documentation that accurately reflects the configuration schema expected by the **Jaeger binary**. To achieve this, we will move beyond Go-reflection-based generation and implement a **Schema-First** workflow where the schema is the primary Source of Truth for code, validation, and documentation.
 
-*Note: Once `mdatagen` matures to support Go struct reflection natively, we will evaluate migrating to it to fully align with upstream.*
+### 1. The Workflow: Schema-First
+We will adopt the following lifecycle for all Jaeger-specific configuration:
 
-### 2. Handling External References ($ref)
-The fundamental question raised in PR #7952 is: *How would an external reference be used?* 
+1.  **Source Schema**: Configuration is defined in JSON Schema (Draft 2020-12) or YAML schema files within the component directory.
+2.  **Code & Validation Generation**: We use code generation (e.g., `go-jsonschema`) to produce Go structs **and** their associated validation logic (struct tags or `Validate()` methods). This ensures the Jaeger binary enforces exactly what is defined in the schema.
+3.  **Documentation Generation**: The same schema is consumed by the documentation pipeline to produce Markdown for jaegertracing.io.
 
-Example from `expvar` schema:
-```yaml
-$ref: go.opentelemetry.io/collector/config/confighttp.server_config
-```
+### 2. Handling Foreign References ($ref)
+User-facing documentation must not contain "opaque" references to external repositories. To ensure the Jaeger binary's documentation is self-contained:
+*   **Logical Pointers**: Source schemas use `$ref` to upstream OTel types (e.g., `confighttp.ServerConfig`) to ensure upstream compatibility.
+*   **The Dereferencer**: Our build process will include a **Schema Dereferencer**. For the purpose of **Documentation and Binary Validation**, this tool will fetch and inline the fields of referenced OTel types.
+*   **Complete Visibility**: This allows the documentation generator to show users the full set of options (e.g., `endpoint`, `tls`, `timeout`) on a single page, even if they are defined in the OTel Collector.
 
-**Decision on References:**
-Generated schemas will leave external `$ref` pointers intact as logical URIs pointing to the Go module path.
+### 3. Functional Richness
+Schemas must go beyond simple type/description to enable robust config authoring and runtime validation. We will utilize JSON Schema's full constraint set:
+*   `pattern`: For regex-based string validation (e.g., hostnames, durations).
+*   `minimum`/`maximum`: For numeric constraints.
+*   `enum`: For restricted string options.
+*   `default`: To provide the "sane defaults" that the Jaeger binary will use.
 
-**How they will be used:**
-We will implement a build-time **Schema Resolver/Bundler** (likely a lightweight script added to the Makefile). This resolver will be responsible for:
-1. Downloading or locating the corresponding schema files from upstream dependency repositories (e.g., fetching the `confighttp.server_config` schema from the Collector's repo).
-2. "Bundling" or "Dereferencing" the schema prior to final packaging or documentation generation, ensuring the end-user receives a fully resolved, self-contained JSON schema.
+### 4. Shared Mechanics (Storage Backends)
+For shared components like storage backends, we will maintain a library of "schema fragments." This ensures that the configuration for "Elasticsearch" is identical and documented consistently whether used in the Query service or the Storage extension.
 
-Until upstream repositories consistently publish their generated schemas alongside their releases, our bundler may need to maintain a local cache or mapping of common OTel configuration schemas.
-
-### 3. Usage & Integration Points
-The generated schemas will serve three primary purposes:
-
-1. **Automated Documentation (Phase 3):** We will build a generator that converts the bundled JSON schemas into markdown documentation, ensuring our docs are always 100% accurate regarding available configuration fields, types, and defaults.
-2. **CI Check (`check-generate`):** A strictly enforced CI target will fail if a developer modifies a configuration struct without regenerating the corresponding schema, identical to how `mockery` and `protobuf` are enforced today.
-3. **Editor/IDE Support:** The fully resolved root schema will be exposed for IDEs (e.g., via `yaml-language-server`) to provide autocomplete and validation for `jaeger-v2.yaml` configuration files.
-
-## Consequences
-
-**Positive:**
-* Configuration documentation becomes automated and guaranteed accurate.
-* IDEs can provide rich autocomplete for Jaeger config files.
-* CI ensures schemas and code never drift.
-
-**Negative:**
-* Requires maintaining a Schema Bundler/Resolver to handle cross-repository `$ref` resolution until the broader OTel ecosystem standardizes schema publishing.
-* Temporary divergence from the `mdatagen`-centric approach being explored upstream, requiring future reconciliation.
+### 5. Integration & Enforcement
+*   **CI Check**: `make check-generate` will verify that Go structs and documentation are strictly derived from the source schemas.
+*   **jaeger print-config**: This command will export the binary's expected schema, validated against the source-of-truth JSON schemas to ensure absolute parity.
