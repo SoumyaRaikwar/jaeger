@@ -28,9 +28,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	metricstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -64,6 +64,25 @@ func (ff fakeFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	return &tracestoremocks.Writer{}, nil
 }
 
+// fakeMetricsReader implements metricstore.Reader for testing without relying on v1 mocks.
+type fakeMetricsReader struct{}
+
+func (f *fakeMetricsReader) GetLatencies(context.Context, *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+	return nil, nil
+}
+
+func (f *fakeMetricsReader) GetCallRates(context.Context, *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+	return nil, nil
+}
+
+func (f *fakeMetricsReader) GetErrorRates(context.Context, *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+	return nil, nil
+}
+
+func (f *fakeMetricsReader) GetMinStepDuration(context.Context, *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
+	return 0, nil
+}
+
 type fakeMetricsFactory struct {
 	name string
 }
@@ -80,7 +99,7 @@ func (fmf fakeMetricsFactory) CreateMetricsReader() (metricstore.Reader, error) 
 	if fmf.name == "need-metrics-reader-error" {
 		return nil, errors.New("test-error")
 	}
-	return &metricstoremocks.Reader{}, nil
+	return &fakeMetricsReader{}, nil
 }
 
 type fakeStorageExt struct{}

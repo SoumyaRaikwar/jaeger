@@ -10,19 +10,45 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	protometrics "github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
+
+type mockReader struct {
+	mock.Mock
+}
+
+func (m *mockReader) GetLatencies(ctx context.Context, params *metricstore.LatenciesQueryParameters) (*protometrics.MetricFamily, error) {
+	args := m.Called(ctx, params)
+	return args.Get(0).(*protometrics.MetricFamily), args.Error(1)
+}
+
+func (m *mockReader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*protometrics.MetricFamily, error) {
+	args := m.Called(ctx, params)
+	return args.Get(0).(*protometrics.MetricFamily), args.Error(1)
+}
+
+func (m *mockReader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*protometrics.MetricFamily, error) {
+	args := m.Called(ctx, params)
+	return args.Get(0).(*protometrics.MetricFamily), args.Error(1)
+}
+
+func (m *mockReader) GetMinStepDuration(ctx context.Context, params *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
+	args := m.Called(ctx, params)
+	return args.Get(0).(time.Duration), args.Error(1)
+}
+
+var _ metricstore.Reader = (*mockReader)(nil)
 
 func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
-	mockReader := mocks.Reader{}
+	mockReader := mockReader{}
 	mrs := metricstoremetrics.NewReaderDecorator(&mockReader, mf)
 	glParams := &metricstore.LatenciesQueryParameters{}
 	mockReader.On("GetLatencies", context.Background(), glParams).
@@ -95,7 +121,7 @@ func checkExpectedExistingAndNonExistentCounters(t *testing.T,
 func TestFailingUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
-	mockReader := mocks.Reader{}
+	mockReader := mockReader{}
 	mrs := metricstoremetrics.NewReaderDecorator(&mockReader, mf)
 	glParams := &metricstore.LatenciesQueryParameters{}
 	mockReader.On("GetLatencies", context.Background(), glParams).

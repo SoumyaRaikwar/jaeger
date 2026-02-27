@@ -18,13 +18,12 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive/calculationstrategy"
-	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
+	smodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-func testThroughputs() []*model.Throughput {
-	return []*model.Throughput{
+func testThroughputs() []*smodel.Throughput {
+	return []*smodel.Throughput{
 		{Service: "svcA", Operation: http.MethodGet, Count: 4, Probabilities: map[string]struct{}{"0.1": {}}},
 		{Service: "svcA", Operation: http.MethodGet, Count: 4, Probabilities: map[string]struct{}{"0.2": {}}},
 		{Service: "svcA", Operation: http.MethodPut, Count: 5, Probabilities: map[string]struct{}{"0.1": {}}},
@@ -36,11 +35,11 @@ func testThroughputBuckets() []*throughputBucket {
 	return []*throughputBucket{
 		{
 			throughput: serviceOperationThroughput{
-				"svcA": map[string]*model.Throughput{
+				"svcA": map[string]*smodel.Throughput{
 					http.MethodGet: {Count: 45},
 					http.MethodPut: {Count: 60},
 				},
-				"svcB": map[string]*model.Throughput{
+				"svcB": map[string]*smodel.Throughput{
 					http.MethodGet: {Count: 30},
 					http.MethodPut: {Count: 15},
 				},
@@ -49,10 +48,10 @@ func testThroughputBuckets() []*throughputBucket {
 		},
 		{
 			throughput: serviceOperationThroughput{
-				"svcA": map[string]*model.Throughput{
+				"svcA": map[string]*smodel.Throughput{
 					http.MethodGet: {Count: 30},
 				},
-				"svcB": map[string]*model.Throughput{
+				"svcB": map[string]*smodel.Throughput{
 					http.MethodGet: {Count: 45},
 				},
 			},
@@ -117,13 +116,13 @@ func TestAggregateThroughput(t *testing.T) {
 }
 
 func TestInitializeThroughput(t *testing.T) {
-	mockStorage := &smocks.Store{}
+	mockStorage := &mockStore{}
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*19), time.Time{}.Add(time.Minute*20)).
 		Return(testThroughputs(), nil)
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*18), time.Time{}.Add(time.Minute*19)).
-		Return([]*model.Throughput{{Service: "svcA", Operation: http.MethodGet, Count: 7}}, nil)
+		Return([]*smodel.Throughput{{Service: "svcA", Operation: http.MethodGet, Count: 7}}, nil)
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*17), time.Time{}.Add(time.Minute*18)).
-		Return([]*model.Throughput{}, nil)
+		Return([]*smodel.Throughput{}, nil)
 	p := &PostAggregator{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 3}}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
@@ -137,7 +136,7 @@ func TestInitializeThroughput(t *testing.T) {
 }
 
 func TestInitializeThroughputFailure(t *testing.T) {
-	mockStorage := &smocks.Store{}
+	mockStorage := &mockStore{}
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*19), time.Time{}.Add(time.Minute*20)).
 		Return(nil, errTestStorage())
 	p := &PostAggregator{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 1}}
@@ -177,7 +176,7 @@ func TestGenerateOperationQPS(t *testing.T) {
 	p.prependThroughputBucket(
 		&throughputBucket{
 			throughput: serviceOperationThroughput{
-				"svcA": map[string]*model.Throughput{
+				"svcA": map[string]*smodel.Throughput{
 					http.MethodGet: {Count: 30},
 				},
 			},
@@ -217,7 +216,7 @@ func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
 	p.prependThroughputBucket(
 		&throughputBucket{
 			throughput: serviceOperationThroughput{
-				"svcA": map[string]*model.Throughput{
+				"svcA": map[string]*smodel.Throughput{
 					http.MethodGet: {Count: 30},
 				},
 			},
@@ -247,13 +246,13 @@ func TestCalculateProbability(t *testing.T) {
 	throughputs := []*throughputBucket{
 		{
 			throughput: serviceOperationThroughput{
-				"svcA": map[string]*model.Throughput{
+				"svcA": map[string]*smodel.Throughput{
 					http.MethodGet: {Probabilities: map[string]struct{}{"0.500000": {}}},
 				},
 			},
 		},
 	}
-	probabilities := model.ServiceOperationProbabilities{
+	probabilities := smodel.ServiceOperationProbabilities{
 		"svcA": map[string]float64{
 			http.MethodGet: 0.5,
 		},
@@ -292,13 +291,13 @@ func TestCalculateProbability(t *testing.T) {
 }
 
 func TestCalculateProbabilitiesAndQPS(t *testing.T) {
-	prevProbabilities := model.ServiceOperationProbabilities{
+	prevProbabilities := smodel.ServiceOperationProbabilities{
 		"svcB": map[string]float64{
 			http.MethodGet: 0.16,
 			http.MethodPut: 0.03,
 		},
 	}
-	qps := model.ServiceOperationQPS{
+	qps := smodel.ServiceOperationQPS{
 		"svcB": map[string]float64{
 			http.MethodGet: 0.625,
 		},
@@ -331,10 +330,10 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 
 func TestRunCalculationLoop(t *testing.T) {
 	logger := zap.NewNop()
-	mockStorage := &smocks.Store{}
+	mockStorage := &mockStore{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return(testThroughputs(), nil)
-	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage())
+	mockStorage.On("GetLatestProbabilities").Return(smodel.ServiceOperationProbabilities{}, errTestStorage())
 	mockStorage.On("InsertProbabilitiesAndQPS", mock.AnythingOfType("string"), mock.AnythingOfType("model.ServiceOperationProbabilities"),
 		mock.AnythingOfType("model.ServiceOperationQPS")).Return(errTestStorage())
 	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(errTestStorage())
@@ -378,10 +377,10 @@ func TestRunCalculationLoop(t *testing.T) {
 
 func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	logger, logBuffer := testutils.NewLogger()
-	mockStorage := &smocks.Store{}
+	mockStorage := &mockStore{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return(nil, errTestStorage())
-	mockStorage.On("GetLatestProbabilities").Return(model.ServiceOperationProbabilities{}, errTestStorage())
+	mockStorage.On("GetLatestProbabilities").Return(smodel.ServiceOperationProbabilities{}, errTestStorage())
 	mockStorage.On("InsertProbabilitiesAndQPS", mock.AnythingOfType("string"), mock.AnythingOfType("model.ServiceOperationProbabilities"),
 		mock.AnythingOfType("model.ServiceOperationQPS")).Return(errTestStorage())
 	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(errTestStorage())
@@ -450,7 +449,7 @@ func TestConstructorFailure(t *testing.T) {
 func TestUsingAdaptiveSampling(t *testing.T) {
 	p := &PostAggregator{}
 	throughput := serviceOperationThroughput{
-		"svc": map[string]*model.Throughput{
+		"svc": map[string]*smodel.Throughput{
 			"op": {Probabilities: map[string]struct{}{"0.010000": {}}},
 		},
 	}
@@ -485,11 +484,11 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	buckets := []*throughputBucket{
 		{
 			throughput: serviceOperationThroughput{
-				"svcA": map[string]*model.Throughput{
+				"svcA": map[string]*smodel.Throughput{
 					http.MethodGet: {Count: 3, Probabilities: map[string]struct{}{"0.001000": {}}},
 					http.MethodPut: {Count: 60, Probabilities: map[string]struct{}{"0.001000": {}}},
 				},
-				"svcB": map[string]*model.Throughput{
+				"svcB": map[string]*smodel.Throughput{
 					http.MethodPut: {Count: 15, Probabilities: map[string]struct{}{"0.001000": {}}},
 				},
 			},
@@ -505,8 +504,8 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 			BucketsForCalculation:      5,
 			AggregationBuckets:         10,
 		},
-		throughputs: buckets, probabilities: make(model.ServiceOperationProbabilities),
-		qps: make(model.ServiceOperationQPS), weightVectorCache: NewWeightVectorCache(),
+		throughputs: buckets, probabilities: make(smodel.ServiceOperationProbabilities),
+		qps: make(smodel.ServiceOperationQPS), weightVectorCache: NewWeightVectorCache(),
 		probabilityCalculator:     calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
 		serviceCache:              []SamplingCache{},
 		operationsCalculatedGauge: metrics.NullFactory.Gauge(metrics.Options{}),
@@ -526,10 +525,10 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	// svcB:PUT is only reporting lowerbound, we should boost it's probability
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
-			"svcA": map[string]*model.Throughput{
+			"svcA": map[string]*smodel.Throughput{
 				http.MethodPut: {Count: 60, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
-			"svcB": map[string]*model.Throughput{
+			"svcB": map[string]*smodel.Throughput{
 				http.MethodGet: {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
 				http.MethodPut: {Count: 0, Probabilities: map[string]struct{}{"0.002000": {}}},
 			},
@@ -551,11 +550,11 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	// it's using adaptive sampling
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
-			"svcA": map[string]*model.Throughput{
+			"svcA": map[string]*smodel.Throughput{
 				http.MethodGet: {Count: 0, Probabilities: map[string]struct{}{"0.002000": {}}},
 				http.MethodPut: {Count: 60, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
-			"svcB": map[string]*model.Throughput{
+			"svcB": map[string]*smodel.Throughput{
 				http.MethodGet: {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
 		},
@@ -575,11 +574,11 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	// svcB:PUT stopped using adaptive sampling
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
-			"svcA": map[string]*model.Throughput{
+			"svcA": map[string]*smodel.Throughput{
 				http.MethodGet: {Count: 1, Probabilities: map[string]struct{}{"0.004000": {}}},
 				http.MethodPut: {Count: 60, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
-			"svcB": map[string]*model.Throughput{
+			"svcB": map[string]*smodel.Throughput{
 				http.MethodGet: {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
 				http.MethodPut: {Count: 15, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
@@ -599,10 +598,10 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	// svcA:GET didn't report anything
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
-			"svcA": map[string]*model.Throughput{
+			"svcA": map[string]*smodel.Throughput{
 				http.MethodPut: {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
-			"svcB": map[string]*model.Throughput{
+			"svcB": map[string]*smodel.Throughput{
 				http.MethodGet: {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
 				http.MethodPut: {Count: 15, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
@@ -623,10 +622,10 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	// svcB:PUT starts to use adaptive sampling again
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
-			"svcA": map[string]*model.Throughput{
+			"svcA": map[string]*smodel.Throughput{
 				http.MethodPut: {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
-			"svcB": map[string]*model.Throughput{
+			"svcB": map[string]*smodel.Throughput{
 				http.MethodGet: {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
 				http.MethodPut: {Count: 1, Probabilities: map[string]struct{}{"0.008000": {}}},
 			},
@@ -647,10 +646,10 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	// svcB:PUT didn't report anything
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
-			"svcA": map[string]*model.Throughput{
+			"svcA": map[string]*smodel.Throughput{
 				http.MethodPut: {Count: 30, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
-			"svcB": map[string]*model.Throughput{
+			"svcB": map[string]*smodel.Throughput{
 				http.MethodGet: {Count: 15, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
 		},
@@ -670,10 +669,10 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	// svcB:PUT didn't report anything
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
-			"svcA": map[string]*model.Throughput{
+			"svcA": map[string]*smodel.Throughput{
 				http.MethodPut: {Count: 20, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
-			"svcB": map[string]*model.Throughput{
+			"svcB": map[string]*smodel.Throughput{
 				http.MethodGet: {Count: 10, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},
 		},
@@ -693,11 +692,11 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 	// svcB:PUT didn't report anything
 	p.prependThroughputBucket(&throughputBucket{
 		throughput: serviceOperationThroughput{
-			"svcA": map[string]*model.Throughput{
+			"svcA": map[string]*smodel.Throughput{
 				http.MethodPut: {Count: 20, Probabilities: map[string]struct{}{"0.001000": {}}},
 				http.MethodGet: {Count: 120, Probabilities: map[string]struct{}{"0.128000": {}}},
 			},
-			"svcB": map[string]*model.Throughput{
+			"svcB": map[string]*smodel.Throughput{
 				http.MethodPut: {Count: 60, Probabilities: map[string]struct{}{"0.064000": {}}},
 				http.MethodGet: {Count: 10, Probabilities: map[string]struct{}{"0.001000": {}}},
 			},

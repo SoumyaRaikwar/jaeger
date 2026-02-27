@@ -17,8 +17,42 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
+	smodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 )
+
+type mockStore struct {
+	mock.Mock
+}
+
+func (m *mockStore) InsertThroughput(throughput []*smodel.Throughput) error {
+	args := m.Called(throughput)
+	return args.Error(0)
+}
+
+func (m *mockStore) InsertProbabilitiesAndQPS(hostname string, probabilities smodel.ServiceOperationProbabilities, qps smodel.ServiceOperationQPS) error {
+	args := m.Called(hostname, probabilities, qps)
+	return args.Error(0)
+}
+
+func (m *mockStore) GetThroughput(start, end time.Time) ([]*smodel.Throughput, error) {
+	args := m.Called(start, end)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*smodel.Throughput), args.Error(1)
+}
+
+func (m *mockStore) GetLatestProbabilities() (smodel.ServiceOperationProbabilities, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(smodel.ServiceOperationProbabilities), args.Error(1)
+}
+
+var _ samplingstore.Store = (*mockStore)(nil)
 
 func TestAggregator(t *testing.T) {
 	t.Skip("Skipping flaky unit test")

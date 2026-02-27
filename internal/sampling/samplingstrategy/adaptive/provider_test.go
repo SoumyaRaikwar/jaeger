@@ -16,13 +16,12 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
-	smocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
+	smodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 )
 
 func TestProviderLoadProbabilities(t *testing.T) {
-	mockStorage := &smocks.Store{}
-	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
+	mockStorage := &mockStore{}
+	mockStorage.On("GetLatestProbabilities").Return(make(smodel.ServiceOperationProbabilities), nil)
 
 	p := &Provider{storage: mockStorage}
 	require.Nil(t, p.probabilities)
@@ -31,8 +30,8 @@ func TestProviderLoadProbabilities(t *testing.T) {
 }
 
 func TestProviderRunUpdateProbabilitiesLoop(t *testing.T) {
-	mockStorage := &smocks.Store{}
-	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
+	mockStorage := &mockStore{}
+	mockStorage.On("GetLatestProbabilities").Return(make(smodel.ServiceOperationProbabilities), nil)
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
@@ -68,16 +67,16 @@ func TestProviderRealisticRunCalculationLoop(t *testing.T) {
 	t.Skip("Skipped realistic calculation loop test")
 	logger := zap.NewNop()
 	// NB: This is an extremely long test since it uses near realistic (1/6th scale) processor config values
-	testThroughputs := []*model.Throughput{
+	testThroughputs := []*smodel.Throughput{
 		{Service: "svcA", Operation: http.MethodGet, Count: 10},
 		{Service: "svcA", Operation: http.MethodPost, Count: 9},
 		{Service: "svcA", Operation: http.MethodPut, Count: 5},
 		{Service: "svcA", Operation: http.MethodDelete, Count: 20},
 	}
-	mockStorage := &smocks.Store{}
+	mockStorage := &mockStore{}
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return(testThroughputs, nil)
-	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
+	mockStorage.On("GetLatestProbabilities").Return(make(smodel.ServiceOperationProbabilities), nil)
 	mockStorage.On("InsertProbabilitiesAndQPS", "host", mock.AnythingOfType("model.ServiceOperationProbabilities"),
 		mock.AnythingOfType("model.ServiceOperationQPS")).Return(nil)
 	mockEP := &epmocks.ElectionParticipant{}
@@ -130,7 +129,7 @@ func TestProviderRealisticRunCalculationLoop(t *testing.T) {
 }
 
 func TestProviderGenerateStrategyResponses(t *testing.T) {
-	probabilities := model.ServiceOperationProbabilities{
+	probabilities := smodel.ServiceOperationProbabilities{
 		"svcA": map[string]float64{
 			http.MethodGet: 0.5,
 		},
