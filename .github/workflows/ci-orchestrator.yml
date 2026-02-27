@@ -46,7 +46,7 @@ jobs:
             echo "Not a merge_group event (event=${{ github.event_name }})"
           fi
 
-          # PR-specific checks (author_association, labels, and actor are only meaningful on pull_request events)
+          # PR-specific checks (author_association, labels, and PR author login are only meaningful on pull_request events)
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # Parallel for org members (MEMBER or OWNER author_association)
             if [[ "${{ github.event.pull_request.author_association }}" == "MEMBER" || \
@@ -58,11 +58,13 @@ jobs:
             fi
 
             # Parallel for known bots (dependency update automation)
-            if [[ "${{ github.actor }}" == "dependabot[bot]" || "${{ github.actor }}" == "renovate[bot]" ]]; then
-              echo "Parallel: bot actor (${{ github.actor }})"
+            # Use github.event.pull_request.user.login to identify the PR author (not the latest commit author)
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+            if [[ "$PR_AUTHOR" == "dependabot[bot]" || "$PR_AUTHOR" == "renovate-bot" ]]; then
+              echo "Parallel: bot PR author ($PR_AUTHOR)"
               PARALLEL=true
             else
-              echo "Not a known bot (actor=${{ github.actor }})"
+              echo "Not a known bot (PR author=$PR_AUTHOR)"
             fi
 
             # Parallel if the ci:parallel label is applied to the PR.

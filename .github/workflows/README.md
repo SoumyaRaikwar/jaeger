@@ -24,7 +24,7 @@ The `setup` job determines whether to use parallel execution based on these **OR
 | Push to `main` branch | Already merged, fully trusted |
 | `merge_group` event | Merge Queue entry, high confidence |
 | PR author is an org member (`MEMBER` or `OWNER`) | Trusted maintainer |
-| PR actor is `dependabot[bot]` or `renovate[bot]` | Dependency automation bots |
+| PR author login is `dependabot[bot]` or `renovate-bot` | Dependency automation bots |
 | PR has the `ci:parallel` label | Explicit opt-in |
 
 #### Stage Workflows (DRY Encapsulation)
