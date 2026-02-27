@@ -10,18 +10,64 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
+
+type mockReader struct {
+	mock.Mock
+}
+
+func (m *mockReader) GetTrace(ctx context.Context, params spanstore.GetTraceParameters) (*model.Trace, error) {
+	args := m.Called(ctx, params)
+	if trace := args.Get(0); trace != nil {
+		return trace.(*model.Trace), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *mockReader) GetServices(ctx context.Context) ([]string, error) {
+	args := m.Called(ctx)
+	if services := args.Get(0); services != nil {
+		return services.([]string), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *mockReader) GetOperations(ctx context.Context, params spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+	args := m.Called(ctx, params)
+	if ops := args.Get(0); ops != nil {
+		return ops.([]spanstore.Operation), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *mockReader) FindTraces(ctx context.Context, params *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	args := m.Called(ctx, params)
+	if traces := args.Get(0); traces != nil {
+		return traces.([]*model.Trace), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *mockReader) FindTraceIDs(ctx context.Context, params *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	args := m.Called(ctx, params)
+	if ids := args.Get(0); ids != nil {
+		return ids.([]model.TraceID), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+var _ spanstore.Reader = (*mockReader)(nil)
 
 func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
-	mockReader := mocks.Reader{}
+	mockReader := mockReader{}
 	mrs := spanstoremetrics.NewReaderDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
@@ -88,7 +134,7 @@ func checkExpectedExistingAndNonExistentCounters(t *testing.T,
 func TestFailingUnderlyingCalls(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
-	mockReader := mocks.Reader{}
+	mockReader := mockReader{}
 	mrs := spanstoremetrics.NewReaderDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).
 		Return(nil, errors.New("Failure"))

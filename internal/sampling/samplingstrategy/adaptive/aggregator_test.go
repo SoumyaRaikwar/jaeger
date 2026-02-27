@@ -18,7 +18,6 @@ import (
 	epmocks "github.com/jaegertracing/jaeger/internal/leaderelection/mocks"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/mocks"
 	smodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 )
 
@@ -28,11 +27,6 @@ type mockStore struct {
 
 func (m *mockStore) InsertThroughput(throughput []*smodel.Throughput) error {
 	args := m.Called(throughput)
-	return args.Error(0)
-}
-
-func (m *mockStore) InsertProbabilitiesAndQPS(hostname string, probabilities smodel.ServiceOperationProbabilities, qps smodel.ServiceOperationQPS) error {
-	args := m.Called(hostname, probabilities, qps)
 	return args.Error(0)
 }
 
@@ -52,13 +46,18 @@ func (m *mockStore) GetLatestProbabilities() (smodel.ServiceOperationProbabiliti
 	return args.Get(0).(smodel.ServiceOperationProbabilities), args.Error(1)
 }
 
+func (m *mockStore) InsertProbabilitiesAndQPS(hostname string, probabilities smodel.ServiceOperationProbabilities, qps smodel.ServiceOperationQPS) error {
+	args := m.Called(hostname, probabilities, qps)
+	return args.Error(0)
+}
+
 var _ samplingstore.Store = (*mockStore)(nil)
 
 func TestAggregator(t *testing.T) {
 	t.Skip("Skipping flaky unit test")
 	metricsFactory := metricstest.NewFactory(0)
 
-	mockStorage := &mocks.Store{}
+	mockStorage := &mockStore{}
 	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(nil)
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
@@ -98,7 +97,7 @@ func TestAggregator(t *testing.T) {
 
 func TestIncrementThroughput(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
-	mockStorage := &mocks.Store{}
+	mockStorage := &mockStore{}
 	mockEP := &epmocks.ElectionParticipant{}
 	testOpts := Options{
 		CalculationInterval:   1 * time.Second,
@@ -125,7 +124,7 @@ func TestIncrementThroughput(t *testing.T) {
 
 func TestLowerboundThroughput(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
-	mockStorage := &mocks.Store{}
+	mockStorage := &mockStore{}
 	mockEP := &epmocks.ElectionParticipant{}
 	testOpts := Options{
 		CalculationInterval:   1 * time.Second,
@@ -143,7 +142,7 @@ func TestLowerboundThroughput(t *testing.T) {
 
 func TestRecordThroughput(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
-	mockStorage := &mocks.Store{}
+	mockStorage := &mockStore{}
 	mockEP := &epmocks.ElectionParticipant{}
 	testOpts := Options{
 		CalculationInterval:   1 * time.Second,
@@ -183,7 +182,7 @@ func TestRecordThroughput(t *testing.T) {
 
 func TestRecordThroughputFunc(t *testing.T) {
 	metricsFactory := metricstest.NewFactory(0)
-	mockStorage := &mocks.Store{}
+	mockStorage := &mockStore{}
 	mockEP := &epmocks.ElectionParticipant{}
 	logger := zap.NewNop()
 	testOpts := Options{

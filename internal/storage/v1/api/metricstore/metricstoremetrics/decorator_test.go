@@ -25,6 +25,9 @@ type mockReader struct {
 
 func (m *mockReader) GetLatencies(ctx context.Context, params *metricstore.LatenciesQueryParameters) (*protometrics.MetricFamily, error) {
 	args := m.Called(ctx, params)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*protometrics.MetricFamily), args.Error(1)
 }
 
@@ -40,6 +43,9 @@ func (m *mockReader) GetCallRates(ctx context.Context, params *metricstore.CallR
 
 func (m *mockReader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*protometrics.MetricFamily, error) {
 	args := m.Called(ctx, params)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*protometrics.MetricFamily), args.Error(1)
 }
 

@@ -67,21 +67,23 @@ func (ff fakeFactory) CreateTraceWriter() (tracestore.Writer, error) {
 // fakeMetricsReader implements metricstore.Reader for testing without relying on v1 mocks.
 type fakeMetricsReader struct{}
 
-func (f *fakeMetricsReader) GetLatencies(context.Context, *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
+func (*fakeMetricsReader) GetLatencies(context.Context, *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, nil
 }
 
-func (f *fakeMetricsReader) GetCallRates(context.Context, *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+func (*fakeMetricsReader) GetCallRates(context.Context, *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, nil
 }
 
-func (f *fakeMetricsReader) GetErrorRates(context.Context, *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+func (*fakeMetricsReader) GetErrorRates(context.Context, *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, nil
 }
 
-func (f *fakeMetricsReader) GetMinStepDuration(context.Context, *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
+func (*fakeMetricsReader) GetMinStepDuration(context.Context, *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	return 0, nil
 }
+
+var _ metricstore.Reader = (*fakeMetricsReader)(nil)
 
 type fakeMetricsFactory struct {
 	name string
